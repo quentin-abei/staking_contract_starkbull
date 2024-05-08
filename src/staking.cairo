@@ -42,6 +42,9 @@ pub trait IStakingRewards<TContractState> {
     fn staking_Token(self: @TContractState) -> ContractAddress;
     fn rewards_Token(self: @TContractState) -> ContractAddress;
     fn total_Staked(self: @TContractState) -> u256;
+    fn updateTime(ref self: TContractState);
+    fn updateStakingDuration(ref self: TContractState, duration: u64);
+    fn get_staking_duration(self: @TContractState) -> u64;
 }
 
 
@@ -51,8 +54,8 @@ pub trait IStakingRewards<TContractState> {
 #[starknet::contract]
 pub mod StakingRewards {
     use core::option::OptionTrait;
-use core::traits::TryInto;
-use core::starknet::event::EventEmitter;
+    use core::traits::TryInto;
+    use core::starknet::event::EventEmitter;
     use starknet::{ContractAddress, get_caller_address, get_contract_address, get_block_timestamp};
     use core::num::traits::Zero;
     use super::{IERC20Dispatcher, IERC20DispatcherTrait};
@@ -87,6 +90,8 @@ use core::starknet::event::EventEmitter;
         rewardsToken: IERC20Dispatcher,
         // Total staked
         totalSupply: u256,
+        currentTime: u64,
+        staking_duration: u64,
         // User address => staked amount
         balanceOf: LegacyMap<ContractAddress, u256>,
         rewardsIndex: u256,
@@ -97,9 +102,11 @@ use core::starknet::event::EventEmitter;
 
     #[constructor]
     fn constructor(ref self: ContractState, _owner: ContractAddress, _staking_token: ContractAddress) {
-        self.owner.write(_owner);
+        let time = get_block_timestamp();
         self.stakingToken.write( IERC20Dispatcher { contract_address: _staking_token });
         self.rewardsToken.write( IERC20Dispatcher { contract_address: _staking_token });
+        self.owner.write(_owner);
+        self.currentTime.write(time);
     }
 
      #[generate_trait]
@@ -118,6 +125,8 @@ use core::starknet::event::EventEmitter;
     #[abi(embed_v0)]
     impl SimpleRewardsImpl of super::IStakingRewards<ContractState> {
        fn stake(ref self: ContractState, amount: felt252) {
+         let time = get_block_timestamp();
+         assert(time - self.currentTime.read() <= self.staking_duration.read(), 'staking has ended');
          let caller = get_caller_address();
          let this = get_contract_address();
          PrivateFunctions::_update_rewards(ref self, caller);
@@ -129,6 +138,8 @@ use core::starknet::event::EventEmitter;
        }
 
        fn unstake(ref self: ContractState, amount: felt252) {
+         let time = get_block_timestamp();
+         assert(time - self.currentTime.read() >= self.staking_duration.read(), 'cannot unstake now');
          let caller = get_caller_address();
          PrivateFunctions::_update_rewards(ref self, caller);
          assert(amount != 0, 'amount is 0');
@@ -161,6 +172,24 @@ use core::starknet::event::EventEmitter;
 
        fn total_Staked(self: @ContractState) -> u256 {
         return (self.totalSupply.read());
+       }
+       
+       /// dev: should be called before telling people to stake
+       fn updateTime(ref self: ContractState)  {
+        let caller = get_caller_address();
+        assert(caller == self.owner.read(), 'error');
+        let this_time = get_block_timestamp();
+        self.currentTime.write(this_time);
+       }
+
+       fn updateStakingDuration(ref self: ContractState, duration: u64)  {
+        let caller = get_caller_address();
+        assert(caller == self.owner.read(), 'error');
+        self.staking_duration.write(duration);
+       }
+
+       fn get_staking_duration(self: @ContractState) -> u64 {
+        return(self.staking_duration.read());
        }
 
        fn update_rewards_index(ref self: ContractState, reward: felt252) {

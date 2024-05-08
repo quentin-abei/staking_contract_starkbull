@@ -1,0 +1,4 @@
+[sncast.default]
+account = "account1"
+accounts-file = "~/accounts/my_accounts.json"
+url = "https://free-rpc.nethermind.io/sepolia-juno"

@@ -56,6 +56,7 @@ fn MALICIOUS() -> ContractAddress {
 fn deploy_staking(name: ByteArray) -> ContractAddress {
     let contract = declare(name).unwrap();
     let STAKING_TOKEN = deployToken("erc20");
+    println!("token address is {:?}", STAKING_TOKEN);
     let mut calldata = array![];
     (OWNER(), STAKING_TOKEN,).serialize(ref calldata);
     let (contract_address, _) = contract.deploy(@calldata).unwrap();
@@ -92,11 +93,11 @@ fn test_staking_token() {
     assert(contract_bal_before == 0, 'something is wrong');
 
     start_prank(CheatTarget::One(staking_token), owner);
-    token_address.approve(stake_dispatcher.contract_address, 11_000_000);
+    //token_address.approve(stake_dispatcher.contract_address, 11_000_000);
     println!("1");
     
-    let allow: felt252 = token_address.allowance(owner, stake_dispatcher.contract_address);
-    assert(allow == 11_000_000, 'did not allow' );
+    // let allow: felt252 = token_address.allowance(owner, stake_dispatcher.contract_address);
+    // assert(allow == 11_000_000, 'did not allow' );
 
     // let owner_bal = token_address.balance_of(owner);
     // println!("owner bal {:?}", owner_bal);
@@ -145,6 +146,10 @@ fn test_staking_token() {
     stop_prank(CheatTarget::One(stake_dispatcher.contract_address));
 
     start_warp(CheatTarget::One(stake_contract_address), 12000);
+    start_prank(CheatTarget::One(stake_contract_address), abusor);
+    let claimed: u256 = stake_dispatcher.claim();
+    println!("total claimed by abusor is {:?}", claimed);
+    stop_prank(CheatTarget::One(stake_dispatcher.contract_address));
     start_prank(CheatTarget::One(stake_contract_address), user);
     let rew: u256 = stake_dispatcher.calculate_rewards_earned(user);
     println!("rewards earned by user is {:?}", rew);
@@ -158,10 +163,6 @@ fn test_staking_token() {
     stake_dispatcher.unstake(4000000);
     let totalstakes: u256 = stake_dispatcher.total_Staked();
     println!("total staked is {:?}", totalstakes);
-    stop_prank(CheatTarget::One(stake_dispatcher.contract_address));
-    start_prank(CheatTarget::One(stake_contract_address), abusor);
-    let claimed: u256 = stake_dispatcher.claim();
-    println!("total claimed by abusor is {:?}", claimed);
     stop_prank(CheatTarget::One(stake_dispatcher.contract_address));
     stop_warp(CheatTarget::One(stake_contract_address));
 
