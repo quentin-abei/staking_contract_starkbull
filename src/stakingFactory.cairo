@@ -17,6 +17,7 @@ pub trait IDeployFactory<TContractState> {
 
 #[starknet::contract]
 pub mod DeployFactory {
+    // 0x5b9d30f08879118d9887358e4b8e3673d50919f503e537843058a9f43947a33
     use starknet::{ContractAddress, ClassHash, SyscallResultTrait, syscalls::deploy_syscall};
     use starknet::get_caller_address;
 
