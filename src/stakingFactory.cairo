@@ -17,9 +17,20 @@ pub trait IDeployFactory<TContractState> {
 
 #[starknet::contract]
 pub mod DeployFactory {
-    // 0x5b9d30f08879118d9887358e4b8e3673d50919f503e537843058a9f43947a33
+    // 0x576b6f04846d107592dbcbf94183aa5f9e933bea0a106ce59510368b5c342c0
     use starknet::{ContractAddress, ClassHash, SyscallResultTrait, syscalls::deploy_syscall};
     use starknet::get_caller_address;
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+      Deployed: Deployed,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Deployed {
+      address: ContractAddress
+    }
 
     #[storage]
     struct Storage {
@@ -50,7 +61,7 @@ pub mod DeployFactory {
                 self.staking_class_hash.read(), 0, constructor_calldata.span(), false
             )
                 .unwrap_syscall();
-
+            self.emit(Deployed{address: deployed_address});
             deployed_address
         }
         
