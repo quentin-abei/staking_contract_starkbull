@@ -38,11 +38,12 @@ pub trait IStakingRewards<TContractState> {
     fn unstake(ref self: TContractState, amount: felt252);
     fn claim(ref self: TContractState) -> u256;
     fn update_rewards_index(ref self: TContractState, reward: felt252);
-    fn calculate_rewards_earned(ref self: TContractState, account: ContractAddress) -> u256;
+    fn calculate_rewards_earned(self: @TContractState, account: ContractAddress) -> u256;
     fn staking_Token(self: @TContractState) -> ContractAddress;
     fn rewards_Token(self: @TContractState) -> ContractAddress;
     fn total_Staked(self: @TContractState) -> u256;
-    fn updateTime(ref self: TContractState);
+    fn get_remaining_time(self: @TContractState) -> u64;
+    //fn updateTime(ref self: TContractState);
     fn updateStakingDuration(ref self: TContractState, duration: u64);
     fn get_staking_duration(self: @TContractState) -> u64;
 }
@@ -111,13 +112,13 @@ pub mod StakingRewards {
 
      #[generate_trait]
     impl PrivateFunctions of PrivateFunctionsTrait {
-       fn _calculate_rewards(ref self: ContractState, account: ContractAddress) -> u256 {
+       fn _calculate_rewards(self: @ContractState, account: ContractAddress) -> u256 {
           let shares: u256 = self.balanceOf.read(account);
           return (shares * (self.rewardsIndex.read() - self.rewardsIndexOf.read(account)))/ MULTIPLIER;
        }
 
        fn _update_rewards(ref self: ContractState, account: ContractAddress) {
-          self.earned.write(account, self.earned.read(account) + PrivateFunctions::_calculate_rewards(ref self, account));
+          self.earned.write(account, self.earned.read(account) + self._calculate_rewards(account));
           self.rewardsIndexOf.write(account, self.rewardsIndex.read());
        }
     }
@@ -125,8 +126,9 @@ pub mod StakingRewards {
     #[abi(embed_v0)]
     impl SimpleRewardsImpl of super::IStakingRewards<ContractState> {
        fn stake(ref self: ContractState, amount: felt252) {
+         //let _amount: u256 = amount.into();
          let time = get_block_timestamp();
-         assert(time - self.currentTime.read() <= self.staking_duration.read(), 'staking has ended');
+         assert(time - self.currentTime.read() <= self.staking_duration.read(), 'staking ended or not started');
          let caller = get_caller_address();
          let this = get_contract_address();
          PrivateFunctions::_update_rewards(ref self, caller);
@@ -175,21 +177,30 @@ pub mod StakingRewards {
        }
        
        /// dev: should be called before telling people to stake
-       fn updateTime(ref self: ContractState)  {
-        let caller = get_caller_address();
-        assert(caller == self.owner.read(), 'error');
-        let this_time = get_block_timestamp();
-        self.currentTime.write(this_time);
-       }
+      //  fn updateTime(ref self: ContractState)  {
+      //   let caller = get_caller_address();
+      //   assert(caller == self.owner.read(), 'error');
+      //   let this_time = get_block_timestamp();
+      //   self.currentTime.write(this_time);
+      //  }
 
        fn updateStakingDuration(ref self: ContractState, duration: u64)  {
         let caller = get_caller_address();
         assert(caller == self.owner.read(), 'error');
+        let this_time = get_block_timestamp();
+        self.currentTime.write(this_time);
         self.staking_duration.write(duration);
        }
 
        fn get_staking_duration(self: @ContractState) -> u64 {
         return(self.staking_duration.read());
+       }
+
+       fn get_remaining_time(self: @ContractState) -> u64 {
+        let this_time = get_block_timestamp();
+        let total_time = self.currentTime.read() + self.staking_duration.read();
+        let remainder = total_time - this_time;
+        return(remainder);
        }
 
        fn update_rewards_index(ref self: ContractState, reward: felt252) {
@@ -200,8 +211,8 @@ pub mod StakingRewards {
          self.rewardsIndex.write(self.rewardsIndex.read() + ((reward.try_into().unwrap() * MULTIPLIER.try_into().unwrap() / self.totalSupply.read())));
        }
 
-       fn calculate_rewards_earned(ref self: ContractState, account: ContractAddress) -> u256 {
-         return self.earned.read(account) + PrivateFunctions::_calculate_rewards(ref self, account);
+       fn calculate_rewards_earned(self: @ContractState, account: ContractAddress) -> u256 {
+         return self.earned.read(account) + self._calculate_rewards(account);
        }
     }
 }
